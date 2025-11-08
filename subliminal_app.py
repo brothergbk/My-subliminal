@@ -365,21 +365,33 @@ class SubliminalApp:
         try:
             import ctypes
             hwnd = pygame.display.get_wm_info()["window"]
-            # Set window to always on top
-            ctypes.windll.user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002)
-            # Set layered window style
+
+            # Windows API constants
             GWL_EXSTYLE = -20
             WS_EX_LAYERED = 0x00080000
+            WS_EX_TOPMOST = 0x00000008
+            WS_EX_TRANSPARENT = 0x00000020
             LWA_COLORKEY = 0x00000001
+            HWND_TOPMOST = -1
+            SWP_NOMOVE = 0x0002
+            SWP_NOSIZE = 0x0001
+            SWP_SHOWWINDOW = 0x0040
 
             # Get current extended style
             ex_style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-            # Add layered window style
-            ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED)
+
+            # Add layered, topmost, and transparent (click-through) styles
+            new_ex_style = ex_style | WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TRANSPARENT
+            ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex_style)
+
             # Set the transparent color key
             ctypes.windll.user32.SetLayeredWindowAttributes(hwnd,
                 ctypes.c_ulong(transparent_color[2] << 16 | transparent_color[1] << 8 | transparent_color[0]),
                 0, LWA_COLORKEY)
+
+            # Set window to always on top
+            ctypes.windll.user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                                             SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
         except:
             pass  # Fallback if we can't set transparency
 
