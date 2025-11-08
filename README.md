@@ -26,8 +26,8 @@ The app displays words briefly on your screen in a non-intrusive way, allowing y
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/brothergbk/sublim.git
-cd sublim
+git clone https://github.com/brothergbk/My-subliminal.git
+cd My-subliminal
 ```
 
 2. Install dependencies:
