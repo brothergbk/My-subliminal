@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, colorchooser
 import pandas as pd
 import pygame
 import threading
@@ -12,8 +12,22 @@ class SubliminalApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Subliminal Message App")
-        self.root.geometry("500x600")
-        
+        self.root.geometry("900x700")
+
+        # Modern color scheme
+        self.colors = {
+            "bg": "#1e1e2e",
+            "fg": "#cdd6f4",
+            "primary": "#89b4fa",
+            "secondary": "#f38ba8",
+            "accent": "#a6e3a1",
+            "surface": "#313244",
+            "hover": "#45475a"
+        }
+
+        # Configure root window
+        self.root.configure(bg=self.colors["bg"])
+
         # Default settings
         self.settings = {
             "flash_duration": 0.1,  # seconds
@@ -23,32 +37,107 @@ class SubliminalApp:
             "bg_color": "#000000",
             "opacity": 0.8
         }
-        
+
+        # Categories and words
+        self.categories = {}  # {category_name: [words]}
+        self.selected_categories = set()  # Set of selected category names
         self.words = []
         self.current_word_index = 0
         self.is_running = False
         self.flash_thread = None
-        
-        self.setup_ui()
+
+        self.setup_modern_ui()
         self.load_settings()
         
-    def setup_ui(self):
-        # Main frame
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        # File selection
-        file_frame = ttk.LabelFrame(main_frame, text="Word List", padding="10")
-        file_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
-        
-        self.file_label = ttk.Label(file_frame, text="No file selected")
-        self.file_label.grid(row=0, column=0, sticky=(tk.W, tk.E))
-        
-        ttk.Button(file_frame, text="Browse CSV", command=self.load_csv).grid(row=0, column=1, padx=5)
-        
+    def setup_modern_ui(self):
+        # Configure style
+        style = ttk.Style()
+        style.theme_use('clam')
+
+        # Configure colors for ttk widgets
+        style.configure("TFrame", background=self.colors["bg"])
+        style.configure("TLabel", background=self.colors["bg"], foreground=self.colors["fg"], font=("Segoe UI", 10))
+        style.configure("TButton", background=self.colors["primary"], foreground=self.colors["bg"],
+                       font=("Segoe UI", 10, "bold"), borderwidth=0, focuscolor='none')
+        style.map("TButton", background=[("active", self.colors["hover"])])
+        style.configure("Accent.TButton", background=self.colors["accent"], foreground=self.colors["bg"])
+        style.configure("TLabelframe", background=self.colors["bg"], foreground=self.colors["fg"],
+                       borderwidth=2, relief="flat")
+        style.configure("TLabelframe.Label", background=self.colors["bg"], foreground=self.colors["primary"],
+                       font=("Segoe UI", 11, "bold"))
+        style.configure("TCheckbutton", background=self.colors["bg"], foreground=self.colors["fg"],
+                       font=("Segoe UI", 10))
+
+        # Main container with two columns
+        main_container = tk.Frame(self.root, bg=self.colors["bg"])
+        main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        # Left panel - Categories
+        left_panel = tk.Frame(main_container, bg=self.colors["bg"])
+        left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+
+        # Right panel - Settings and Controls
+        right_panel = tk.Frame(main_container, bg=self.colors["bg"])
+        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+
+        # === LEFT PANEL ===
+        # Category management
+        category_frame = ttk.LabelFrame(left_panel, text="📁 Categories", padding="15")
+        category_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+
+        # Category buttons
+        cat_button_frame = tk.Frame(category_frame, bg=self.colors["bg"])
+        cat_button_frame.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Button(cat_button_frame, text="➕ Add Category",
+                  command=self.add_category).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(cat_button_frame, text="📂 Load from File",
+                  command=self.load_category_from_file).pack(side=tk.LEFT, padx=5)
+        ttk.Button(cat_button_frame, text="🗑️ Delete",
+                  command=self.delete_category, style="Accent.TButton").pack(side=tk.LEFT, padx=5)
+
+        # Category list with checkboxes
+        cat_list_frame = tk.Frame(category_frame, bg=self.colors["surface"], relief=tk.FLAT, bd=2)
+        cat_list_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Scrollbar for categories
+        cat_scrollbar = tk.Scrollbar(cat_list_frame, bg=self.colors["surface"])
+        cat_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.category_listbox = tk.Listbox(cat_list_frame, bg=self.colors["surface"],
+                                          fg=self.colors["fg"], selectmode=tk.MULTIPLE,
+                                          font=("Segoe UI", 10), borderwidth=0,
+                                          highlightthickness=0, selectbackground=self.colors["primary"],
+                                          yscrollcommand=cat_scrollbar.set)
+        self.category_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        cat_scrollbar.config(command=self.category_listbox.yview)
+        self.category_listbox.bind('<<ListboxSelect>>', self.on_category_select)
+
+        # Words in selected categories
+        words_frame = ttk.LabelFrame(left_panel, text="📝 Words in Selected Categories", padding="15")
+        words_frame.pack(fill=tk.BOTH, expand=True)
+
+        words_list_frame = tk.Frame(words_frame, bg=self.colors["surface"], relief=tk.FLAT, bd=2)
+        words_list_frame.pack(fill=tk.BOTH, expand=True)
+
+        words_scrollbar = tk.Scrollbar(words_list_frame, bg=self.colors["surface"])
+        words_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.words_text = tk.Text(words_list_frame, bg=self.colors["surface"],
+                                 fg=self.colors["fg"], font=("Segoe UI", 10),
+                                 borderwidth=0, highlightthickness=0, wrap=tk.WORD,
+                                 yscrollcommand=words_scrollbar.set, height=10)
+        self.words_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        words_scrollbar.config(command=self.words_text.yview)
+
+        # Update button
+        ttk.Button(words_frame, text="✓ Update Active Words",
+                  command=self.update_words_from_text).pack(pady=(10, 0))
+
+        # === RIGHT PANEL ===
         # Settings frame
-        settings_frame = ttk.LabelFrame(main_frame, text="Settings", padding="10")
-        settings_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        settings_frame = ttk.LabelFrame(right_panel, text="⚙️ Flash Settings", padding="15")
+        settings_frame.pack(fill=tk.X, pady=(0, 10))
         
         # Flash duration
         ttk.Label(settings_frame, text="Flash Duration (s):").grid(row=0, column=0, sticky=tk.W)
